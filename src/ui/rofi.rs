@@ -15,52 +15,59 @@ pub fn show_main_menu() -> BluetoothMenuResult {
     let options = get_menu_options(&devices);
 
     match rofi::Rofi::new(&options).prompt("Bluetooth").run() {
-        Ok(choice) => match choice.as_str() {
-            "Power: on" | "Power: off" => {
-                toggle_power();
-                BluetoothMenuResult::Continue
+        Ok(choice) => {
+            if let Some(res) = handle_controller_toggle(&choice) {
+                return res;
             }
-            "Scan: on" | "Scan: off" => {
-                toggle_scan();
-                BluetoothMenuResult::Continue
+            let mut selected_device: Option<Device> = None;
+            for device in devices {
+                if device.name == choice {
+                    selected_device = Some(device);
+                    break;
+                }
             }
-            "Pairable: on" | "Pairable: off" => {
-                toggle_pairable();
-                BluetoothMenuResult::Continue
-            }
-            "Discoverable: on" | "Discoverable: off" => {
-                toggle_discoverable();
-                BluetoothMenuResult::Continue
-            }
-            _ => {
-                let mut selected_device: Option<Device> = None;
-                for device in devices {
-                    if device.name == choice {
-                        selected_device = Some(device);
+            loop {
+                match show_device_menu(selected_device.as_ref()) {
+                    DeviceMenuResult::ExitWithError(e) => {
+                        return BluetoothMenuResult::ExitWithError(e);
+                    }
+                    DeviceMenuResult::Continue => {
+                        continue;
+                    }
+                    DeviceMenuResult::Back => {
                         break;
                     }
                 }
-                loop {
-                    match show_device_menu(selected_device.as_ref()) {
-                        DeviceMenuResult::ExitWithError(e) => {
-                            return BluetoothMenuResult::ExitWithError(e);
-                        }
-                        DeviceMenuResult::Continue => {
-                            continue;
-                        }
-                        DeviceMenuResult::Back => {
-                            break;
-                        }
-                    }
-                }
-                println!("{:?}", choice);
-                BluetoothMenuResult::Continue
             }
-        },
+            println!("{:?}", choice);
+            BluetoothMenuResult::Continue
+        }
         Err(rofi::Error::Interrupted) => {
             BluetoothMenuResult::ExitWithError("Interrupted".to_string())
         }
         Err(e) => BluetoothMenuResult::ExitWithError(e.to_string()),
+    }
+}
+
+fn handle_controller_toggle(choice: &str) -> Option<BluetoothMenuResult> {
+    match choice {
+        "Power: on" | "Power: off" => {
+            toggle_power();
+            Some(BluetoothMenuResult::Continue)
+        }
+        "Scan: on" | "Scan: off" => {
+            toggle_scan();
+            Some(BluetoothMenuResult::Continue)
+        }
+        "Pairable: on" | "Pairable: off" => {
+            toggle_pairable();
+            Some(BluetoothMenuResult::Continue)
+        }
+        "Discoverable: on" | "Discoverable: off" => {
+            toggle_discoverable();
+            Some(BluetoothMenuResult::Continue)
+        }
+        _ => None,
     }
 }
 
@@ -75,25 +82,12 @@ pub fn show_device_menu(device: Option<&Device>) -> DeviceMenuResult {
         Some(device) => {
             let device_options: Vec<String> = device.get_menu();
             match rofi::Rofi::new(&device_options).prompt(&device.name).run() {
-                Ok(dev) => match dev.as_str() {
-                    "Trusted: off" | "Trusted: on" => {
-                        device.toggle_trust();
-                        DeviceMenuResult::Continue
+                Ok(dev) => {
+                    if let Some(res) = handle_device_toggle(&dev, &device) {
+                        return res;
                     }
-                    "Paired: off" | "Paired: on" => {
-                        device.toggle_paired();
-                        DeviceMenuResult::Continue
-                    }
-                    "Connected: off" | "Connected: on" => {
-                        device.toggle_connection();
-                        DeviceMenuResult::Continue
-                    }
-                    "Back" => DeviceMenuResult::Back,
-                    _ => {
-                        println!("{:?}", dev);
-                        DeviceMenuResult::Continue
-                    }
-                },
+                    DeviceMenuResult::Continue
+                }
                 Err(rofi::Error::Interrupted) => {
                     DeviceMenuResult::ExitWithError("Interrupted".to_string())
                 }
@@ -101,5 +95,24 @@ pub fn show_device_menu(device: Option<&Device>) -> DeviceMenuResult {
             }
         }
         None => DeviceMenuResult::Back,
+    }
+}
+
+fn handle_device_toggle(choice: &str, device: &Device) -> Option<DeviceMenuResult> {
+    match choice {
+        "Trusted: off" | "Trusted: on" => {
+            device.toggle_trust();
+            Some(DeviceMenuResult::Continue)
+        }
+        "Paired: off" | "Paired: on" => {
+            device.toggle_paired();
+            Some(DeviceMenuResult::Continue)
+        }
+        "Connected: off" | "Connected: on" => {
+            device.toggle_connection();
+            Some(DeviceMenuResult::Continue)
+        }
+        "Back" => Some(DeviceMenuResult::Back),
+        _ => None,
     }
 }
