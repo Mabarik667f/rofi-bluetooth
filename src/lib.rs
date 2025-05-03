@@ -1,8 +1,4 @@
-use core::time;
-use std::{
-    process::{Command, Output},
-    thread,
-};
+use std::process::{Command, Output};
 
 #[derive(Debug)]
 struct ServiceAction<'a> {
@@ -117,25 +113,6 @@ fn check_option_on(option: &str) -> bool {
     String::from_utf8_lossy(&command_res.stdout).is_empty()
 }
 
-pub fn device_trusted(mac: &str) -> bool {
-    check_device_option_on("Trusted: yes", mac)
-}
-pub fn device_paired(mac: &str) -> bool {
-    check_device_option_on("Paired: yes", mac)
-}
-pub fn device_connected(mac: &str) -> bool {
-    check_device_option_on("Connected: yes", mac)
-}
-
-fn check_device_option_on(option: &str, mac: &str) -> bool {
-    let command_res = Command::new("sh")
-        .arg("-c")
-        .arg(format!("bluetoothctl info {mac} | grep '{option}'"))
-        .output()
-        .expect("failed to execute process");
-    String::from_utf8_lossy(&command_res.stdout).is_empty()
-}
-
 pub fn get_devices() -> Vec<Device> {
     let res = Command::new("sh")
         .arg("-c")
@@ -149,11 +126,10 @@ pub fn get_devices() -> Vec<Device> {
         };
 
         let device_sp = device.split(" ").collect::<Vec<&str>>();
-        let n = device_sp.len();
 
         devices.push(Device {
-            mac: device_sp[n - 2].to_string(),
-            name: device_sp[n - 1].to_string(),
+            mac: device_sp[1].to_string(),
+            name: device_sp[2..].join(" "),
         });
     }
     devices
@@ -163,6 +139,108 @@ pub fn get_devices() -> Vec<Device> {
 pub struct Device {
     pub mac: String,
     pub name: String,
+}
+
+impl Device {
+    pub fn trusted(&self) -> bool {
+        self.check_option_on("Trusted: yes")
+    }
+    pub fn paired(&self) -> bool {
+        self.check_option_on("Paired: yes")
+    }
+    pub fn connected(&self) -> bool {
+        self.check_option_on("Connected: yes")
+    }
+
+    fn check_option_on(&self, option: &str) -> bool {
+        let command_res = Command::new("sh")
+            .arg("-c")
+            .arg(format!(
+                "bluetoothctl info {0} | grep '{1}'",
+                self.mac, option
+            ))
+            .output()
+            .expect("failed to execute process");
+        String::from_utf8_lossy(&command_res.stdout).is_empty()
+    }
+
+    pub fn toggle_trust(&self) {
+        if !self.trusted() {
+            ServiceAction {
+                arg: &format!("bluetoothctl untrust {}", self.mac),
+                err_msg: "failed to toggle scan",
+            }
+            .run();
+        } else {
+            ServiceAction {
+                arg: &format!("bluetoothctl trust {}", self.mac),
+                err_msg: "failed to toggle scan",
+            }
+            .run();
+        }
+    }
+    pub fn toggle_connection(&self) {
+        if !self.connected() {
+            ServiceAction {
+                arg: &format!("bluetoothctl disconnect {}", self.mac),
+                err_msg: "failed to toggle scan",
+            }
+            .run();
+        } else {
+            ServiceAction {
+                arg: &format!("bluetoothctl connect {}", self.mac),
+                err_msg: "failed to toggle scan",
+            }
+            .run();
+        }
+    }
+    pub fn toggle_paired(&self) {
+        if !self.paired() {
+            println!("RUN PAIRED REMOVE");
+            ServiceAction {
+                arg: &format!("bluetoothctl remove {}", self.mac),
+                err_msg: "failed to toggle scan",
+            }
+            .run();
+        } else {
+            println!("RUN PAIRED PAIR");
+            ServiceAction {
+                arg: &format!("bluetoothctl pair {}", self.mac),
+                err_msg: "failed to toggle scan",
+            }
+            .run();
+        }
+    }
+
+    pub fn get_menu(&self) -> Vec<String> {
+        let mut options: Vec<String> = vec![];
+
+        let connected = self.connected();
+        if connected {
+            options.push("Connected: no".to_string());
+        } else {
+            options.push("Connected: yes".to_string());
+        }
+
+        let paired = self.paired();
+        if paired {
+            options.push("Paired: no".to_string());
+        } else {
+            options.push("Paired: yes".to_string());
+        }
+
+        let trusted = self.trusted();
+        if trusted {
+            options.push("Trusted: no".to_string());
+        } else {
+            options.push("Trusted: yes".to_string());
+        }
+
+        options.push("----------".to_string());
+        options.push("Back".to_string());
+
+        options
+    }
 }
 
 mod tests {
