@@ -10,11 +10,15 @@ pub enum BluetoothMenuResult {
     ExitWithError(String),
 }
 
-pub fn show_main_menu() -> BluetoothMenuResult {
+pub fn show_main_menu(theme: &str) -> BluetoothMenuResult {
     let devices = get_devices();
     let options = get_menu_options(&devices);
 
-    match rofi::Rofi::new(&options).prompt("Bluetooth").run() {
+    match rofi::Rofi::new(&options)
+        .prompt("Bluetooth")
+        .theme(Some(theme))
+        .run()
+    {
         Ok(choice) => {
             if let Some(res) = handle_controller_toggle(&choice) {
                 return res;
@@ -27,7 +31,7 @@ pub fn show_main_menu() -> BluetoothMenuResult {
                 }
             }
             loop {
-                match show_device_menu(selected_device.as_ref()) {
+                match show_device_menu(selected_device.as_ref(), &theme) {
                     DeviceMenuResult::ExitWithError(e) => {
                         return BluetoothMenuResult::ExitWithError(e);
                     }
@@ -77,11 +81,15 @@ pub enum DeviceMenuResult {
     ExitWithError(String),
 }
 
-pub fn show_device_menu(device: Option<&Device>) -> DeviceMenuResult {
+pub fn show_device_menu(device: Option<&Device>, theme: &str) -> DeviceMenuResult {
     match device {
         Some(device) => {
             let device_options: Vec<String> = device.get_menu();
-            match rofi::Rofi::new(&device_options).prompt(&device.name).run() {
+            match rofi::Rofi::new(&device_options)
+                .theme(Some(theme))
+                .prompt(&device.name)
+                .run()
+            {
                 Ok(dev) => {
                     if let Some(res) = handle_device_toggle(&dev, &device) {
                         return res;
