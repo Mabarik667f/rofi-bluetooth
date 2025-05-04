@@ -17,21 +17,6 @@ pub fn get_menu_options(devices: &Vec<Device>) -> Vec<String> {
     options
 }
 
-fn unblock_bluetooth() {
-    let bl_locked = ServiceAction {
-        arg: &format!("rfkill list bluetooth | grep -q 'blocked: yes'"),
-        err_msg: "failed unblock bluetooth",
-    }
-    .run();
-    if !bl_locked.stdout.is_empty() {
-        ServiceAction {
-            arg: &format!("rfkill unblock bluetooth | sleep 3"),
-            err_msg: "failed unblock bluetooth",
-        }
-        .run();
-    }
-}
-
 pub fn toggle_power() {
     let command = if power_on() {
         "off"
@@ -47,12 +32,23 @@ pub fn toggle_power() {
     .run();
 }
 
-fn kill_scan() {
-    ServiceAction {
-        arg: &format!("kill $(pgrep -f 'bluetoothctl --timeout 5 scan on')"),
-        err_msg: "failed to kill scan pids",
+pub fn power_on() -> bool {
+    check_option_on("Powered: yes")
+}
+
+fn unblock_bluetooth() {
+    let bl_locked = ServiceAction {
+        arg: &format!("rfkill list bluetooth | grep -q 'blocked: yes'"),
+        err_msg: "failed unblock bluetooth",
     }
     .run();
+    if !bl_locked.stdout.is_empty() {
+        ServiceAction {
+            arg: &format!("rfkill unblock bluetooth | sleep 3"),
+            err_msg: "failed unblock bluetooth",
+        }
+        .run();
+    }
 }
 
 pub fn toggle_scan() {
@@ -67,6 +63,18 @@ pub fn toggle_scan() {
     ServiceAction { arg, err_msg }.run();
 }
 
+pub fn scan_on() -> bool {
+    check_option_on("Discovering: yes")
+}
+
+fn kill_scan() {
+    ServiceAction {
+        arg: &format!("kill $(pgrep -f 'bluetoothctl --timeout 5 scan on')"),
+        err_msg: "failed to kill scan pids",
+    }
+    .run();
+}
+
 pub fn toggle_pairable() {
     let command = if pairable_on() { "off" } else { "on" };
 
@@ -75,6 +83,10 @@ pub fn toggle_pairable() {
         err_msg: "failed to toggle scan",
     }
     .run();
+}
+
+pub fn pairable_on() -> bool {
+    check_option_on("Pairable: yes")
 }
 
 pub fn toggle_discoverable() {
@@ -89,18 +101,6 @@ pub fn toggle_discoverable() {
 
 pub fn discoverable_on() -> bool {
     check_option_on("Discoverable: yes")
-}
-
-pub fn scan_on() -> bool {
-    check_option_on("Discovering: yes")
-}
-
-pub fn pairable_on() -> bool {
-    check_option_on("Pairable: yes")
-}
-
-pub fn power_on() -> bool {
-    check_option_on("Powered: yes")
 }
 
 fn check_option_on(option: &str) -> bool {
